@@ -75,7 +75,7 @@ def summarize_with_cohere_chunks(transcript_text):
             all_notes.append(f"[ERROR in chunk {idx + 1}]: {e}")
     return "\n\n".join(all_notes)
 
-# --- Generate PDF ---
+# --- Generate PDF (default font, fallback for special characters) ---
 def generate_pdf(text, output_path):
     pdf = FPDF()
     pdf.add_page()
@@ -85,8 +85,8 @@ def generate_pdf(text, output_path):
         try:
             pdf.multi_cell(0, 10, line)
         except:
-            # Handle special characters
-            pdf.multi_cell(0, 10, line.encode('latin-1', 'replace').decode('latin-1'))
+            safe_line = line.encode('latin-1', 'replace').decode('latin-1')
+            pdf.multi_cell(0, 10, safe_line)
     pdf.output(output_path)
     return output_path
 
@@ -108,7 +108,6 @@ if st.button("📝 Summarize in Notes"):
                     result = model.transcribe(audio_path)
                     transcript = result["text"]
 
-                # Save transcript for reference
                 with open(os.path.join(run_dir, "transcript.txt"), "w", encoding="utf-8") as f:
                     f.write(transcript)
 
