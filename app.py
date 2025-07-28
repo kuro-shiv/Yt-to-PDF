@@ -30,13 +30,16 @@ model = load_model()
 run_dir = os.path.join("runs", datetime.now().strftime("%Y%m%d_%H%M%S"))
 os.makedirs(run_dir, exist_ok=True)
 
-# --- Download YouTube Audio ---
+# --- Download YouTube Audio with User-Agent Fix ---
 def download_audio(url, run_dir):
     output_path = os.path.join(run_dir, 'audio.webm')
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_path,
         'quiet': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        }
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
@@ -82,6 +85,7 @@ def generate_pdf(text, output_path):
         try:
             pdf.multi_cell(0, 10, line)
         except:
+            # Handle special characters
             pdf.multi_cell(0, 10, line.encode('latin-1', 'replace').decode('latin-1'))
     pdf.output(output_path)
     return output_path
