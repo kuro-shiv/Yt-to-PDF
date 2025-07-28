@@ -75,18 +75,22 @@ def summarize_with_cohere_chunks(transcript_text):
             all_notes.append(f"[ERROR in chunk {idx + 1}]: {e}")
     return "\n\n".join(all_notes)
 
-# --- Generate PDF (default font, fallback for special characters) ---
+# --- Generate PDF using Unicode font (DejaVuSans) ---
 def generate_pdf(text, output_path):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", size=12)
+
+    font_path = os.path.join("fonts", "DejaVuSans.ttf")
+    if not os.path.exists(font_path):
+        raise FileNotFoundError("Font file missing: fonts/DejaVuSans.ttf")
+
+    pdf.add_font("DejaVu", "", font_path, uni=True)
+    pdf.set_font("DejaVu", size=12)
+
     for line in textwrap.wrap(text, width=100):
-        try:
-            pdf.multi_cell(0, 10, line)
-        except:
-            safe_line = line.encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 10, safe_line)
+        pdf.multi_cell(0, 10, line)
+
     pdf.output(output_path)
     return output_path
 
