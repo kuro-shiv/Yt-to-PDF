@@ -9,3 +9,4 @@ pillow~=11.1.0
 filelock~=3.18.0
 git+https://github.com/openai/whisper.git
 yt-dlp
+fpdf~=1.7.2
