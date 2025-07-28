@@ -104,7 +104,7 @@ if st.button("📝 Summarize in Notes"):
                     result = model.transcribe(audio_path)
                     transcript = result["text"]
 
-                # Save transcript for reference (optional)
+                # Save transcript for reference
                 with open(os.path.join(run_dir, "transcript.txt"), "w", encoding="utf-8") as f:
                     f.write(transcript)
 
