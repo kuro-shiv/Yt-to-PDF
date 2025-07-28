@@ -7,4 +7,5 @@ attrs~=24.3.0
 pysocks~=1.7.1
 pillow~=11.1.0
 filelock~=3.18.0
-openai-whisper==20231106
+git+https://github.com/openai/whisper.git
+
