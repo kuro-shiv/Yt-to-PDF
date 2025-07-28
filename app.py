@@ -20,6 +20,7 @@ st.title("📝 YouTube Notes Generator")
 
 video_url = st.text_input("📎 Enter YouTube video URL:")
 
+# --- Load Whisper Model (Tiny) ---
 @st.cache_resource
 def load_model():
     return whisper.load_model("tiny")
@@ -31,19 +32,15 @@ os.makedirs(run_dir, exist_ok=True)
 
 # --- Download YouTube Audio ---
 def download_audio(url, run_dir):
+    output_path = os.path.join(run_dir, 'audio.webm')
     ydl_opts = {
         'format': 'bestaudio/best',
-        'outtmpl': os.path.join(run_dir, 'audio.%(ext)s'),
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
+        'outtmpl': output_path,
         'quiet': True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
-    return os.path.join(run_dir, 'audio.mp3')
+    return output_path
 
 # --- Extract Video ID ---
 def get_video_id(url):
@@ -54,7 +51,7 @@ def get_video_id(url):
 def split_text(text, max_words=3000):
     words = text.split()
     for i in range(0, len(words), max_words):
-        yield ' '.join(words[i:i+max_words])
+        yield ' '.join(words[i:i + max_words])
 
 # --- Cohere Note-style Summarization ---
 def summarize_with_cohere_chunks(transcript_text):
@@ -63,7 +60,7 @@ def summarize_with_cohere_chunks(transcript_text):
 
     for idx, chunk in enumerate(all_chunks):
         try:
-            with st.spinner(f"Summarizing chunk {idx + 1}/{len(all_chunks)}..."):
+            with st.spinner(f"✍️ Summarizing chunk {idx + 1}/{len(all_chunks)}..."):
                 response = co.summarize(
                     text=chunk,
                     format="bullets",
@@ -74,10 +71,9 @@ def summarize_with_cohere_chunks(transcript_text):
                 all_notes.append(response.summary)
         except Exception as e:
             all_notes.append(f"[ERROR in chunk {idx + 1}]: {e}")
-
     return "\n\n".join(all_notes)
 
-# --- Generate PDF ---
+# --- Generate PDF from Notes ---
 def generate_pdf(text, output_path):
     pdf = FPDF()
     pdf.add_page()
@@ -88,53 +84,56 @@ def generate_pdf(text, output_path):
     pdf.output(output_path)
     return output_path
 
-# --- Main Process ---
+# --- Main Processing ---
 if st.button("📝 Summarize in Notes"):
     if not video_url:
         st.error("❗ Please enter a valid YouTube video URL.")
     else:
         video_id = get_video_id(video_url)
         if not video_id:
-            st.error("❌ Could not extract video ID.")
+            st.error("❌ Could not extract video ID from the URL.")
         else:
-            st.info("📥 Downloading YouTube audio...")
-            audio_path = download_audio(video_url, run_dir)
+            try:
+                st.info("📥 Downloading audio from YouTube...")
+                audio_path = download_audio(video_url, run_dir)
 
-            st.info("🎤 Transcribing with Whisper (tiny) — This may take ~1–2 minutes")
-            with st.spinner("⏳ Transcribing audio..."):
-                result = model.transcribe(audio_path)
-                transcript = result["text"]
+                st.info("🎤 Transcribing with Whisper Tiny — may take ~1–2 mins")
+                with st.spinner("⏳ Transcribing audio..."):
+                    result = model.transcribe(audio_path)
+                    transcript = result["text"]
 
-            # Save to file
-            with open(os.path.join(run_dir, "transcript.txt"), "w", encoding="utf-8") as f:
-                f.write(transcript)
+                with open(os.path.join(run_dir, "transcript.txt"), "w", encoding="utf-8") as f:
+                    f.write(transcript)
 
-            st.info("🧠 Generating structured notes with Cohere...")
-            notes = summarize_with_cohere_chunks(transcript)
+                st.info("🧠 Generating structured notes using Cohere...")
+                notes = summarize_with_cohere_chunks(transcript)
 
-            if notes.startswith("ERROR"):
-                st.error(notes)
-            else:
-                st.success("📚 Notes generated successfully!")
-                st.subheader("🗒️ Structured Notes")
-                st.markdown(notes)
+                if notes.startswith("ERROR"):
+                    st.error(notes)
+                else:
+                    st.success("📚 Notes generated successfully!")
+                    st.subheader("🗒️ Structured Notes")
+                    st.markdown(notes)
 
-                pdf_path = os.path.join(run_dir, "summary_notes.pdf")
-                generate_pdf(notes, pdf_path)
+                    pdf_path = os.path.join(run_dir, "summary_notes.pdf")
+                    generate_pdf(notes, pdf_path)
 
-                with open(pdf_path, "rb") as f:
-                    st.download_button(
-                        label="📄 Download Notes as PDF",
-                        data=f,
-                        file_name="summary_notes.pdf",
-                        mime="application/pdf",
-                        type="primary"
-                    )
-                st.success("✅ PDF ready for download!")
+                    with open(pdf_path, "rb") as f:
+                        st.download_button(
+                            label="📄 Download Notes as PDF",
+                            data=f,
+                            file_name="summary_notes.pdf",
+                            mime="application/pdf",
+                            type="primary"
+                        )
+                    st.success("✅ Notes ready for download!")
 
-            # --- Clean up temporary files and folder ---
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
+            # --- Clean Up Temporary Folder ---
             try:
                 shutil.rmtree(run_dir)
                 st.info("🧹 Cleaned up temporary files.")
             except Exception as e:
-                st.warning(f"⚠️ Could not delete temp files: {e}")
+                st.warning(f"⚠️ Failed to delete temp folder: {e}")
