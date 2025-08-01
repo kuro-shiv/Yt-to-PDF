@@ -120,4 +120,5 @@ if st.button("📝 Summarize in Notes"):
                 pass
 
    st.markdown("---")
+
 st.markdown("Contact: smartfresherhubsa@gmail.com | Phone: +91 8299142475 © 2025 Smart Fresher Hub")
