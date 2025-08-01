@@ -83,6 +83,8 @@ def generate_pdf(text, output_path):
 if st.button("📝 Summarize in Notes"):
     if not video_url:
         st.error("Please enter a YouTube URL.")
+        st.markdown("Max video length is 30 mins")
+
     else:
         run_dir = os.path.join(RUNS_DIR, datetime.now().strftime("%Y%m%d_%H%M%S"))
         os.makedirs(run_dir, exist_ok=True)
@@ -116,3 +118,6 @@ if st.button("📝 Summarize in Notes"):
                 st.info("Temporary files cleaned.")
             except:
                 pass
+
+   st.markdown("---")
+st.markdown("Contact: smartfresherhubsa@gmail.com | Phone: +91 8299142475 © 2025 Smart Fresher Hub")
