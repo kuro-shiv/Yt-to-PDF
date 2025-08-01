@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-import yt_dlp
 import whisper
 import cohere
 import shutil
@@ -23,7 +22,8 @@ RUNS_DIR = "runs"
 CHUNK_WORD_LIMIT = 3000
 
 # ========== Inputs ==========
-video_url = st.text_input("📎 Enter YouTube video URL:")
+st.markdown("Upload an audio file (`.mp3`, `.wav`, or `.webm`) for transcription and summarization.")
+audio_file = st.file_uploader("📤 Upload Audio File", type=["mp3", "wav", "webm"])
 
 @st.cache_resource
 def load_model():
@@ -31,17 +31,6 @@ def load_model():
 model = load_model()
 
 # ========== Helpers ==========
-
-def download_audio(url, output_dir):
-    output_path = os.path.join(output_dir, 'audio.webm')
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': output_path,
-        'quiet': True
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-    return output_path
 
 def split_text(text, max_words=CHUNK_WORD_LIMIT):
     words = text.split()
@@ -72,16 +61,18 @@ def generate_pdf(text, output_path):
         pdf.multi_cell(0, 10, line)
     pdf.output(output_path)
 
-# ========== Main Button ==========
-if st.button("📝 Summarize in Notes"):
-    if not video_url:
-        st.error("Please enter a YouTube URL.")
+# ========== Main Action ==========
+if st.button("📝 Generate Notes"):
+    if not audio_file:
+        st.error("Please upload an audio file.")
     else:
         run_dir = os.path.join(RUNS_DIR, datetime.now().strftime("%Y%m%d_%H%M%S"))
         os.makedirs(run_dir, exist_ok=True)
 
         try:
-            audio_path = download_audio(video_url, run_dir)
+            audio_path = os.path.join(run_dir, audio_file.name)
+            with open(audio_path, "wb") as f:
+                f.write(audio_file.read())
 
             with st.spinner("🎤 Transcribing audio..."):
                 transcript = model.transcribe(audio_path)["text"]
@@ -100,7 +91,7 @@ if st.button("📝 Summarize in Notes"):
             st.success("✅ PDF ready!")
 
         except Exception as e:
-            st.error("Something went wrong. Please try again.")
+            st.error("Something went wrong.")
             st.exception(e)
 
         finally:

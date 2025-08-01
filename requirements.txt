@@ -1,13 +1,5 @@
-youtube_transcript_api~=1.2.1
 streamlit~=1.47.0
-google-generativeai
 python-dotenv~=1.1.0
-protobuf~=5.29.3
-attrs~=24.3.0
-pysocks~=1.7.1
-pillow~=11.1.0
-filelock~=3.18.0
-git+https://github.com/openai/whisper.git
-yt-dlp
-fpdf~=1.7.2
 cohere~=4.45.0
+fpdf~=1.7.2
+git+https://github.com/openai/whisper.git
