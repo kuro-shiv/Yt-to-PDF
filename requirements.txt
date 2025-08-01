@@ -1,5 +1,6 @@
 streamlit~=1.47.0
 python-dotenv~=1.1.0
-cohere~=4.45.0
 fpdf~=1.7.2
+yt-dlp
 git+https://github.com/openai/whisper.git
+cohere~=4.45.0
