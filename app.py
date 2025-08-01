@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import yt_dlp
 import whisper
 import cohere
 import shutil
@@ -7,6 +8,7 @@ import textwrap
 from datetime import datetime
 from dotenv import load_dotenv
 from fpdf import FPDF
+import socket
 
 # ========== Config ==========
 load_dotenv()
@@ -21,9 +23,16 @@ MODEL_SIZE = "tiny"
 RUNS_DIR = "runs"
 CHUNK_WORD_LIMIT = 3000
 
-# ========== Inputs ==========
-st.markdown("Upload an audio file (`.mp3`, `.wav`, or `.webm`) for transcription and summarization.")
-audio_file = st.file_uploader("📤 Upload Audio File", type=["mp3", "wav", "webm"])
+# Detect if running on Streamlit Cloud
+def is_cloud():
+    hostname = socket.gethostname()
+    return "streamlit" in hostname or "cloud" in hostname
+
+on_cloud = is_cloud()
+
+# Inputs
+video_url = st.text_input("📎 Enter YouTube video URL:" if not on_cloud else "⚠️ YouTube URL input (local only)", disabled=on_cloud)
+audio_file = st.file_uploader("📤 Or upload an audio file", type=["mp3", "wav", "webm"])
 
 @st.cache_resource
 def load_model():
@@ -31,6 +40,19 @@ def load_model():
 model = load_model()
 
 # ========== Helpers ==========
+def download_audio(url, output_dir):
+    output_path = os.path.join(output_dir, 'audio.webm')
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': output_path,
+        'quiet': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        }
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+    return output_path
 
 def split_text(text, max_words=CHUNK_WORD_LIMIT):
     words = text.split()
@@ -61,24 +83,34 @@ def generate_pdf(text, output_path):
         pdf.multi_cell(0, 10, line)
     pdf.output(output_path)
 
-# ========== Main Action ==========
+# ========== Main ==========
 if st.button("📝 Generate Notes"):
-    if not audio_file:
-        st.error("Please upload an audio file.")
+    if not video_url and not audio_file:
+        st.error("Please upload an audio file or provide a YouTube URL.")
     else:
         run_dir = os.path.join(RUNS_DIR, datetime.now().strftime("%Y%m%d_%H%M%S"))
         os.makedirs(run_dir, exist_ok=True)
 
         try:
-            audio_path = os.path.join(run_dir, audio_file.name)
-            with open(audio_path, "wb") as f:
-                f.write(audio_file.read())
+            # Get audio file
+            if audio_file:
+                audio_path = os.path.join(run_dir, audio_file.name)
+                with open(audio_path, "wb") as f:
+                    f.write(audio_file.read())
+            elif not on_cloud and video_url:
+                audio_path = download_audio(video_url, run_dir)
+            else:
+                st.error("YouTube URL download is not supported on Streamlit Cloud.")
+                st.stop()
 
+            # Transcribe
             with st.spinner("🎤 Transcribing audio..."):
                 transcript = model.transcribe(audio_path)["text"]
 
+            # Summarize
             notes = summarize_with_cohere(transcript)
 
+            # Output
             st.success("Notes generated!")
             st.subheader("🗒️ Structured Notes")
             st.markdown(notes)
@@ -88,6 +120,7 @@ if st.button("📝 Generate Notes"):
 
             with open(pdf_path, "rb") as f:
                 st.download_button("📄 Download Notes as PDF", f, file_name="notes.pdf", mime="application/pdf")
+
             st.success("✅ PDF ready!")
 
         except Exception as e:
