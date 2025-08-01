@@ -30,7 +30,7 @@ model = load_model()
 
 # ========== Input ========== #
 video_url = st.text_input("📎 Enter YouTube video URL:")
-st.text_input("Max video length is 30 mins")
+st.text("Max video length is 30 mins")
 
 # ========== Helper Functions ========== #
 def download_audio(url, output_dir):
