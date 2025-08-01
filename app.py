@@ -1,149 +1,111 @@
 import streamlit as st
 import os
-from datetime import datetime
-import re
 import yt_dlp
 import whisper
-from dotenv import load_dotenv
-from fpdf import FPDF
 import cohere
 import shutil
 import textwrap
+from datetime import datetime
+from dotenv import load_dotenv
+from fpdf import FPDF
 
-# --- Load API Key ---
+# ========== Config ==========
 load_dotenv()
-co = cohere.Client(os.getenv("COHERE_API_KEY"))
+CO_API_KEY = os.getenv("COHERE_API_KEY")
+co = cohere.Client(CO_API_KEY)
 
-# --- Streamlit Page Config ---
 st.set_page_config(page_title="YouTube Notes Generator", layout="centered")
 st.title("📝 YouTube Notes Generator")
 
+# ========== Constants ==========
+MODEL_SIZE = "tiny"
+RUNS_DIR = "runs"
+CHUNK_WORD_LIMIT = 3000
+
+# ========== Inputs ==========
 video_url = st.text_input("📎 Enter YouTube video URL:")
 
-# --- Load Whisper Tiny Model ---
 @st.cache_resource
 def load_model():
-    return whisper.load_model("tiny")
+    return whisper.load_model(MODEL_SIZE)
 model = load_model()
 
-# --- Create Unique Run Directory ---
-run_dir = os.path.join("runs", datetime.now().strftime("%Y%m%d_%H%M%S"))
-os.makedirs(run_dir, exist_ok=True)
+# ========== Helpers ==========
 
-# --- Download YouTube Audio with User-Agent Fix ---
-def download_audio(url, run_dir):
-    output_path = os.path.join(run_dir, 'audio.webm')
+def download_audio(url, output_dir):
+    output_path = os.path.join(output_dir, 'audio.webm')
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_path,
-        'quiet': True,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-        }
+        'quiet': True
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
     return output_path
 
-# --- Extract YouTube Video ID ---
-def get_video_id(url):
-    match = re.search(r"v=([a-zA-Z0-9_-]{11})", url)
-    return match.group(1) if match else None
-
-# --- Split transcript into chunks ---
-def split_text(text, max_words=3000):
+def split_text(text, max_words=CHUNK_WORD_LIMIT):
     words = text.split()
     for i in range(0, len(words), max_words):
         yield ' '.join(words[i:i + max_words])
 
-# --- Summarize with Cohere in Chunks ---
-def summarize_with_cohere_chunks(transcript_text):
-    all_chunks = list(split_text(transcript_text))
-    all_notes = []
-    for idx, chunk in enumerate(all_chunks):
-        try:
-            with st.spinner(f"✍️ Summarizing chunk {idx + 1}/{len(all_chunks)}..."):
-                response = co.summarize(
-                    text=chunk,
-                    format="bullets",
-                    length="long",
-                    extractiveness="medium",
-                    temperature=0.3
-                )
-                all_notes.append(response.summary)
-        except Exception as e:
-            all_notes.append(f"[ERROR in chunk {idx + 1}]: {e}")
-    return "\n\n".join(all_notes)
+def summarize_with_cohere(text):
+    summaries = []
+    for idx, chunk in enumerate(split_text(text)):
+        with st.spinner(f"✍️ Summarizing chunk {idx + 1}..."):
+            response = co.summarize(
+                text=chunk,
+                format="bullets",
+                length="long",
+                extractiveness="medium",
+                temperature=0.3
+            )
+            summaries.append(response.summary)
+    return "\n\n".join(summaries)
 
-# --- Generate PDF using Unicode font (DejaVuSans) ---
 def generate_pdf(text, output_path):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-
-    font_path = os.path.join("fonts", "DejaVuSans.ttf")
-    if not os.path.exists(font_path):
-        raise FileNotFoundError("Font file missing: fonts/DejaVuSans.ttf")
-
-    pdf.add_font("DejaVu", "", font_path, uni=True)
-    pdf.set_font("DejaVu", size=12)
+    pdf.set_auto_page_break(True, margin=15)
+    pdf.set_font("Arial", size=12)
 
     for line in textwrap.wrap(text, width=100):
         pdf.multi_cell(0, 10, line)
-
     pdf.output(output_path)
-    return output_path
 
-# --- Main Execution ---
+# ========== Main Button ==========
 if st.button("📝 Summarize in Notes"):
     if not video_url:
-        st.error("❗ Please enter a valid YouTube video URL.")
+        st.error("Please enter a YouTube URL.")
     else:
-        video_id = get_video_id(video_url)
-        if not video_id:
-            st.error("❌ Could not extract video ID from the URL.")
-        else:
-            try:
-                st.info("📥 Downloading audio from YouTube...")
-                audio_path = download_audio(video_url, run_dir)
+        run_dir = os.path.join(RUNS_DIR, datetime.now().strftime("%Y%m%d_%H%M%S"))
+        os.makedirs(run_dir, exist_ok=True)
 
-                st.info("🎤 Transcribing with Whisper Tiny — may take ~1–2 mins")
-                with st.spinner("⏳ Transcribing audio..."):
-                    result = model.transcribe(audio_path)
-                    transcript = result["text"]
+        try:
+            audio_path = download_audio(video_url, run_dir)
 
-                with open(os.path.join(run_dir, "transcript.txt"), "w", encoding="utf-8") as f:
-                    f.write(transcript)
+            with st.spinner("🎤 Transcribing audio..."):
+                transcript = model.transcribe(audio_path)["text"]
 
-                st.info("🧠 Generating structured notes using Cohere...")
-                notes = summarize_with_cohere_chunks(transcript)
+            notes = summarize_with_cohere(transcript)
 
-                if notes.startswith("ERROR"):
-                    st.error(notes)
-                else:
-                    st.success("📚 Notes generated successfully!")
-                    st.subheader("🗒️ Structured Notes")
-                    st.markdown(notes)
+            st.success("Notes generated!")
+            st.subheader("🗒️ Structured Notes")
+            st.markdown(notes)
 
-                    pdf_path = os.path.join(run_dir, "summary_notes.pdf")
-                    generate_pdf(notes, pdf_path)
+            pdf_path = os.path.join(run_dir, "notes.pdf")
+            generate_pdf(notes, pdf_path)
 
-                    with open(pdf_path, "rb") as f:
-                        st.download_button(
-                            label="📄 Download Notes as PDF",
-                            data=f,
-                            file_name="summary_notes.pdf",
-                            mime="application/pdf",
-                            type="primary"
-                        )
-                    st.success("✅ Notes ready for download!")
+            with open(pdf_path, "rb") as f:
+                st.download_button("📄 Download Notes as PDF", f, file_name="notes.pdf", mime="application/pdf")
+            st.success("✅ PDF ready!")
 
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
+        except Exception as e:
+            st.error("Something went wrong. Please try again.")
+            st.exception(e)
 
-            # --- Clean up temp folder ---
+        finally:
             try:
                 shutil.rmtree(run_dir)
-                st.info("🧹 Temporary files cleaned up.")
-            except Exception as e:
-                st.warning(f"⚠️ Could not delete temp folder: {e}")
+                st.info("Temporary files cleaned.")
+            except:
+                pass
