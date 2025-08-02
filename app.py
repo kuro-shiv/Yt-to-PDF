@@ -63,7 +63,7 @@ def summarize_with_cohere(text):
         with st.spinner(f"✍️ Summarizing chunk {idx + 1}..."):
             response = co.summarize(
                 text=chunk,
-                format="bullets",
+                format="paragraph",  # Changed from "bullets"
                 length="long",
                 extractiveness="medium",
                 temperature=0.3
@@ -84,7 +84,6 @@ def generate_pdf(text, output_path):
 if st.button("📝 Summarize in Notes"):
     if not video_url:
         st.error("Please enter a YouTube URL.")
-        
     else:
         run_dir = os.path.join(RUNS_DIR, datetime.now().strftime("%Y%m%d_%H%M%S"))
         os.makedirs(run_dir, exist_ok=True)
@@ -119,6 +118,6 @@ if st.button("📝 Summarize in Notes"):
             except:
                 pass
 
-    st.markdown("---")
-
-st.markdown("Contact: smartfresherhubsa@gmail.com | Phone: +91 8299142475 © 2025 Smart Fresher Hub")
+# ========== Footer ========== #
+st.markdown("---")
+st.markdown("📬 Contact: smartfresherhubsa@gmail.com | 📞 +91 8299142475  \n© 2025 Smart Fresher Hub")
