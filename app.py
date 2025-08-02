@@ -36,7 +36,7 @@ st.text("Max video length is 30 mins")
 def download_audio(url, output_dir):
     output_path = os.path.join(output_dir, 'audio.%(ext)s')
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'outtmpl': output_path,
         'quiet': True,
         'noplaylist': True,
@@ -45,8 +45,12 @@ def download_audio(url, output_dir):
             'Accept-Language': 'en-US,en;q=0.9'
         }
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except yt_dlp.utils.DownloadError as e:
+        st.error("⚠️ Failed to download video. It may be age-restricted, private, or unavailable.")
+        st.stop()
 
     for file in os.listdir(output_dir):
         if file.startswith("audio."):
@@ -60,10 +64,10 @@ def split_text(text, max_words=CHUNK_WORD_LIMIT):
 def summarize_with_cohere(text):
     summaries = []
     for idx, chunk in enumerate(split_text(text)):
-        with st.spinner(f"✍️ Summarizing chunk {idx + 1}..."):
+        with st.spinner(f"✍️ Summarizing part {idx + 1}..."):
             response = co.summarize(
                 text=chunk,
-                format="paragraph",  # Changed from "bullets"
+                format="paragraph",
                 length="long",
                 extractiveness="medium",
                 temperature=0.3
@@ -118,6 +122,7 @@ if st.button("📝 Summarize in Notes"):
             except:
                 pass
 
-# ========== Footer ========== #
-st.markdown("---")
-st.markdown("📬 Contact: smartfresherhubsa@gmail.com | 📞 +91 8299142475  \n© 2025 Smart Fresher Hub")
+    st.markdown("---")
+
+# Contact footer (merged at bottom)
+st.markdown("Contact: smartfresherhubsa@gmail.com | Phone: +91 8299142475 © 2025 Smart Fresher Hub")
